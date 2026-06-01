@@ -1,6 +1,11 @@
 import os
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-
+import streamlit as st
+# 兼容本地和环境变量
+try:
+    DEEPSEEK_API_KEY = st.secrets.get("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+except:
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 import time
 import csv
 import warnings
