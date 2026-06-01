@@ -69,7 +69,7 @@ python etl_parse.py
 bash
 运行
 streamlit run app.py
-浏览器打开 http://localhost:8501，即可进行农业知识问答。
+浏览器打开 http://     ，即可进行农业知识问答。
 6.（可选）命令行模式
 bash
 运行
