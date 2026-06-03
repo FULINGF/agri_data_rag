@@ -1,0 +1,14 @@
+{
+  "processed_files": {
+    "pest_control.pdf": {
+      "md5": "3ea7a30942037ed90f607db41b10fae4",
+      "processed_at": "2026-06-03T16:05:41.038005",
+      "folder": "documents"
+    },
+    "pest_list.csv": {
+      "md5": "3fa7b8c4bfead599640f66a9794c6fa2",
+      "processed_at": "2026-06-03T16:05:41.038026",
+      "folder": "warehouse_exports"
+    }
+  }
+}
