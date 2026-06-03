@@ -1,91 +1,92 @@
 """
-本地数仓 + RAG 联动脚本（从本地 CSV 读取 ADS 数据，调用本地 RAG 生成答案）
+数仓联动 - 批量防治建议生成器
+从数仓 ADS 层读取高频病虫害指标，自动生成防治建议报告
 """
-import csv
-import time
 import os
+import csv
 from datetime import datetime
-from rag_query import ask_question_stream, retriever, format_refs_only
+from rag_query import ask_question_stream, retriever
 
-# ==================== 配置 ====================
-ADS_CSV_PATH = "./data/pest_list.csv"        # 从 DataWorks 下载的数据文件
-LOG_CSV_PATH = "./rag_ads_log.csv"      # 联动日志输出
+# ================= 配置 =================
+# 数仓导出文件路径（从 MaxCompute 导出的 CSV）
+WAREHOUSE_CSV = "./data/warehouse_exports/ads_jilin_corn_pest_top.csv"
+# 报告输出路径
+REPORT_OUTPUT = "./data/reports/pest_control_report.txt"
 
 
-def get_top_pests_from_csv(csv_path, limit=3):
-    """直接从 CSV 读取前三行有效数据（忽略多余列和空行）"""
+def read_pest_top_from_csv():
+    """从数仓导出的 CSV 读取高频病虫害 Top N"""
     pests = []
-    if not os.path.exists(csv_path):
-        print(f"⚠️ 未找到 {csv_path}，使用默认测试数据")
-        return ["玉米螟", "大斑病", "粘虫"][:limit]
+    if os.path.exists(WAREHOUSE_CSV):
+        with open(WAREHOUSE_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                pests.append({
+                    "pest_name": row["pest_name"],
+                    "freq": row["freq"],
+                    "dt": row["dt"]
+                })
+    else:
+        # 兜底：硬编码示例数据
+        pests = [
+            {"pest_name": "玉米螟", "freq": 120, "dt": "2026-05-27"},
+            {"pest_name": "大斑病", "freq": 85, "dt": "2026-05-27"},
+            {"pest_name": "粘虫", "freq": 60, "dt": "2026-05-27"},
+        ]
+    return pests
 
-    with open(csv_path, 'r', encoding='utf-8-sig') as f:  # utf-8-sig 自动去除 BOM
-        lines = f.readlines()
-        # 跳过第一行表头，取后续非空行
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            parts = line.strip().split(',')
-            if len(parts) >= 2:
-                pest_name = parts[0].strip('"')
-                freq_str = parts[1].strip('"')
-                if pest_name and freq_str and freq_str.isdigit():
-                    pests.append((pest_name, int(freq_str)))
-            if len(pests) >= limit:
-                break
-    return [name for name, _ in pests]
 
-def write_log_to_csv(query, answer, latency_ms, ref_info):
-    """将问答日志写入 CSV"""
-    file_exists = os.path.exists(LOG_CSV_PATH)
-    with open(LOG_CSV_PATH, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["timestamp", "query", "answer", "latency_ms", "ref_info"])
-        writer.writerow([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            query,
-            answer.replace("\n", " "),
-            latency_ms,
-            ref_info.replace("\n", " ")
-        ])
+def generate_report(pests):
+    """生成防治建议报告"""
+    os.makedirs(os.path.dirname(REPORT_OUTPUT), exist_ok=True)
+
+    with open(REPORT_OUTPUT, "w", encoding="utf-8") as f:
+        f.write("=" * 60 + "\n")
+        f.write("  吉林省玉米病虫害防治建议报告\n")
+        f.write("=" * 60 + "\n")
+        f.write(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"数据日期：{pests[0]['dt'] if pests else 'N/A'}\n")
+        f.write(f"高频病虫害数量：{len(pests)}\n")
+        f.write("=" * 60 + "\n\n")
+
+        for i, pest in enumerate(pests, 1):
+            f.write(f"[{i}/{len(pests)}] {pest['pest_name']}（发生频次：{pest['freq']}）\n")
+            f.write("-" * 60 + "\n")
+
+            # 调用 RAG 生成防治建议
+            query = f"如何防治{pest['pest_name']}？"
+            print(f"🔍 检索 {pest['pest_name']} 的防治方案...")
+
+            answer = ""
+            for chunk in ask_question_stream(query):
+                answer += chunk
+
+            f.write(f"防治建议：\n{answer}\n\n")
+            f.write("\n")
+
+        f.write("=" * 60 + "\n")
+        f.write("报告生成完成\n")
+        f.write("=" * 60 + "\n")
+
+    print(f"\n✅ 报告已生成：{REPORT_OUTPUT}")
+
 
 def main():
     print("=" * 60)
-    print("🌽 本地数仓 + RAG 联动任务")
+    print("  数仓联动 - 批量防治建议生成器")
     print("=" * 60)
 
-    # 1. 从本地 CSV 读取高频病虫害
-    pests = get_top_pests_from_csv(ADS_CSV_PATH, limit=3)
-    print(f"✅ 读取到高发病虫害：{pests}")
+    # 读取数仓数据
+    pests = read_pest_top_from_csv()
+    print(f"📊 读取到 {len(pests)} 个高频病虫害")
 
-    if not pests:
-        print("⚠️ 无病虫害数据，退出")
-        return
+    # 生成报告
+    generate_report(pests)
 
-    # 2. 对每个病虫害生成防治方案
-    for idx, pest in enumerate(pests, 1):
-        query = f"吉林玉米种植中，{pest} 如何防治？"
-        print(f"\n[{idx}/{len(pests)}] 正在处理：{query}")
+    print("\n" + "=" * 60)
+    print("  批处理完成")
+    print("=" * 60)
 
-        # 调用你已有的 RAG 流式接口，收集完整答案
-        start_time = time.time()
-        full_answer = ""
-        for chunk in ask_question_stream(query):
-            full_answer += chunk
-        latency_ms = int((time.time() - start_time) * 1000)
-
-        # 获取检索到的参考资料（可选）
-        docs = retriever.invoke(query)
-        ref_info = format_refs_only(docs) if docs else "无参考资料"
-
-        print(f"🤖 生成答案（{latency_ms}ms）：{full_answer[:100]}...")
-
-        # 3. 将日志写入本地 CSV
-        write_log_to_csv(query, full_answer, latency_ms, ref_info)
-        print(f"📝 日志已写入 {LOG_CSV_PATH}")
-
-    print("\n✅ 本地联动任务完成")
 
 if __name__ == "__main__":
     main()
