@@ -1,8 +1,8 @@
 import os
 # 设置 Hugging Face 国内镜像
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 # (可选) 增加下载超时时间，防止大文件下载中断
-os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "600"
+# os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "600"
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain_community")
