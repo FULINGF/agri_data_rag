@@ -1,5 +1,5 @@
 import os
-import streamlit as st
+# import streamlit as st
 
 # ================= 路径配置 =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +26,7 @@ TOP_K = 3
 # ================= DeepSeek API 配置 =================
 # 优先从 streamlit secrets 读取，其次环境变量
 try:
+    import streamlit as st
     DEEPSEEK_API_KEY = st.secrets["DEEPSEEK_API_KEY"]
 except (AttributeError, KeyError, FileNotFoundError):
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
